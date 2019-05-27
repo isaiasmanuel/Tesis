@@ -1,0 +1,343 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jan 29 14:41:01 2019
+
+@author: kille
+"""
+import torch
+import torchvision
+import torchvision.transforms as transforms
+import numpy as np
+
+########################################################################
+# The output of torchvision datasets are PILImage images of range [0, 1].
+# We transform them to Tensors of normalized range [-1, 1].
+
+transform = transforms.Compose(
+    [transforms.ToTensor(),
+     transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))])
+
+#transform = transforms.Compose([transforms.ToTensor()])
+
+
+trainset = torchvision.datasets.MNIST(root='./data', train=True,
+                                        download=True, transform=transform)
+
+#p=torch.utils.data.Subset(trainset, np.random.choice(range(60000), size=51000, replace=False))
+#trainloader = torch.utils.data.DataLoader(p, batch_size=4,shuffle=True, num_workers=2)
+
+
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
+                                          shuffle=True, num_workers=2)
+
+testset = torchvision.datasets.MNIST(root='./data', train=False,
+                                       download=True, transform=transform)
+
+testloader = torch.utils.data.DataLoader(testset, batch_size=4,
+                                         shuffle=True, num_workers=2)
+
+classes = ('zero', 'one', 'two', 'three',
+           'four', 'five', 'six', 'seven', 'eight', 'nine')
+
+
+import matplotlib.pyplot as plt
+
+# functions to show an image
+
+
+def imshow(img):
+    img = img# / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.show()
+
+
+# get some random training images
+dataiter = iter(trainloader)
+images, labels = dataiter.next()
+
+
+
+# show images
+imshow(torchvision.utils.make_grid(images))
+# print labels
+print(' '.join('%5s' % classes[labels[j]] for j in range(4)))
+
+
+
+
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(1, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 4 * 4, 300)
+        self.fc2 = nn.Linear(300, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.logsigmoid(self.conv1(x)))
+        x = self.pool(F.logsigmoid(self.conv2(x)))
+        x = x.view(-1, 16 * 4 * 4)
+        x = F.logsigmoid(self.fc1(x))
+        x = F.logsigmoid(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+# =============================================================================
+# class Net(nn.Module):
+#    def __init__(self):
+#        super(Net, self).__init__()
+#        self.fc1 = nn.Linear(784, 100)
+#        self.fc2 = nn.Linear(100, 20)
+#        self.fc3 = nn.Linear(20, 10)
+# 
+#    def forward(self, x):
+#        x = x.view(-1, 28*28)
+#        x = self.fc1(x)
+#        x = self.fc2(x)
+#        #x = torch.sigmoid(self.fc3(x))
+#        x = self.fc3(x)
+#        return x
+# 
+# 
+# =============================================================================
+
+net = Net()
+net.parameters()
+
+
+
+import torch.optim as optim
+
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+########################################################################
+# 4. Train the network
+# ^^^^^^^^^^^^^^^^^^^^
+#
+# This is when things start to get interesting.
+# We simply have to loop over our data iterator, and feed the inputs to the
+# network and optimize.
+
+
+
+
+for epoch in range(2):  # loop over the dataset multiple times
+
+    running_loss = 0.0
+    for i, data in enumerate(trainloader, 0):
+        # get the inputs
+        inputs, labels = data
+
+        # zero the parameter gradients
+        optimizer.zero_grad()
+
+        # forward + backward + optimize
+        outputs = net(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        # print statistics
+        running_loss += loss.item()
+        if i % 2000 == 1999:    # print every 2000 mini-batches
+            print('[%d, %5d] loss: %.3f' %
+                  (epoch + 1, i + 1, running_loss / 2000))
+            running_loss = 0.0
+
+print('Finished Training')
+
+####################
+
+
+dataiter = iter(testloader)
+images, labels = dataiter.next()
+
+# print images
+imshow(torchvision.utils.make_grid(images))
+print('GroundTruth: ', ' '.join('%5s' % classes[labels[j]] for j in range(4)))
+
+
+####################
+outputs = net(images)
+
+_, predicted = torch.max(outputs, 1)
+
+print('Predicted: ', ' '.join('%5s' % classes[predicted[j]]
+                              for j in range(4)))
+
+#####################
+correct = 0
+total = 0
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+print('Accuracy of the network on the 10000 test images: %d %%' % (
+    100 * correct / total))
+
+
+class_correct = list(0. for i in range(10))
+class_total = list(0. for i in range(10))
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data
+        outputs = net(images)
+        _, predicted = torch.max(outputs, 1)
+        c = (predicted == labels).squeeze()
+        for i in range(4):
+            label = labels[i]
+            class_correct[label] += c[i].item()
+            class_total[label] += 1
+
+
+for i in range(10):
+    print('Accuracy of %5s : %2d %%' % (
+        classes[i], 100 * class_correct[i] / class_total[i]))
+
+
+
+
+
+z=torch.ones(28,requires_grad=True)
+
+net(images[:1])
+
+
+
+#Ascenso de gradiente
+seg = array([1,1,1,0,0,1,1])
+Eval=net(images[:1]-images[:1]+torch.from_numpy(SevenSegment( seg )/256).float()).detach().numpy()[0]
+
+F.softmax(net(images[:1]-images[:1]+torch.from_numpy(SevenSegment( seg )/256).float())).detach().numpy()[0]
+fromarray(SevenSegment( seg ), mode='L')
+
+
+alfa=0+10**(-3) #regularizador
+beta=0.001 #gradiente
+C=5
+i=0
+#for i in range(10000) :
+while F.softmax(net(N),1)[0][C]<0.9999:
+            if i==0 :
+    #            z=images[:1]
+    #            z=images[:1]-images[:1]+torch.from_numpy(np.float32(samples[29:,:]))            
+                #z=images[:1]-images[:1]+torch.ones(28,28,requires_grad=True)+torch.empty(28, 28).uniform_(-2, 0) 
+                #z=images[:1]-images[:1]+torch.from_numpy(np.reshape((znp),(28,28))).float()
+                z=images[:1]-images[:1]+torch.from_numpy(np.float32(samples[29:,:]))            
+#                z=images[:1]-images[:1]+torch.from_numpy(SevenSegment( seg )/256).float()
+                z.requires_grad=True
+    #            z=torch.ones(28,28,requires_grad=True)+torch.empty(28, 28).uniform_(-2, 0)    #-.99
+            #        net.zero_grad()            
+            W=torch.autograd.grad(F.softmax(net(z),1)[0][C]-alfa*torch.norm(z)**2, z, retain_graph=True)[0]
+            N=z+beta*W    
+            N[N>1]=1
+            N[N<-1]=-1    
+    #        N[N<-1]=-1    
+            print(F.softmax(net(N),1)[0][C]-alfa*torch.norm(N)**2,i,F.softmax(net(N),1)[0][C])
+            z=torch.autograd.Variable(N.data,requires_grad=True)
+            i+=1
+
+imshow(torchvision.utils.make_grid(z.detach()))    
+    
+imshow(torchvision.utils.make_grid(N.detach()))    
+
+
+
+
+    
+
+#F.softmax(net(N))
+#sum(F.softmax(net(Prueba-Prueba+C),1)[0])
+#net(N)
+#Nprueba=N.clone()
+
+N=Nprueba.clone()
+N=z
+#N=images[:1]-images[:1]+torch.ones(28,28,requires_grad=True)
+plt.figure(1)
+#imshow(torchvision.utils.make_grid(N.detach()))
+base=8
+
+#from scipy import stats
+
+for i in range(28-base+1):
+    for j in range(28-base+1):
+        Naux=N.clone()
+        Naux[0,0,i:(i+base),j:(j+base)]=-1
+#        Proba=np.exp((F.softmax(net(Naux),1)[0][C]-F.softmax(net(N),1)[0][C]).detach().numpy())
+#        if stats.uniform.rvs()<Proba:
+        if (F.softmax(net(Naux),1)[0][C]-F.softmax(net(N),1)[0][C]).detach().numpy()>0:
+#            print(i,j,Proba)
+            print(i,j)            
+            N=Naux.clone()        
+
+
+plt.figure(2)
+
+imshow(torchvision.utils.make_grid(N.detach()))
+net(N)
+F.softmax(net(Naux),1)[0][C]
+F.softmax(net(N),1)[0][C]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#########################
+plt.figure(2)
+imshow(torchvision.utils.make_grid(Naux.detach()))
+
+plt.figure(2)
+imshow(torchvision.utils.make_grid(images[:1]))
+np.array(data[0])
+data[0]
+
+
+imshow(torchvision.utils.make_grid(trainset[1][0]))
+     
+
+
+
+#########################
+import os
+from numpy import genfromtxt
+os.chdir("C:/Users/kille/Desktop")
+np.savetxt("Ceroprototipo.csv", N.detach(), delimiter=",")
+#np.savetxt("Ceroreal.csv", trainset[1][0].detach().numpy()[0], delimiter=",")
+Cero=torch.from_numpy(genfromtxt('Ceroprototipo.csv', delimiter=','))
+C=genfromtxt('Ceroprototipo.csv', delimiter=',')
+C=np.float32(C)
+C.shape
+C=torch.from_numpy(C)
+
+
+imshow(torchvision.utils.make_grid(C))
+
+imshow(torch.from_numpy(np.reshape(base[0],(28,28))))
+
+
+net(trainset[1][0])
+#net(C)
+
+
+
