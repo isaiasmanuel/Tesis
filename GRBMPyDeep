@@ -1,0 +1,302 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar 12 13:24:24 2019
+
+@author: kille
+"""
+
+import numpy,copy,os
+os.chdir("C:/Users/kille/Desktop/LRP")
+import modules,utils
+X,T = utils.getMNISTsample(N=60000,path='mnist/',seed=1234)
+# =============================================================================
+# 
+# os.chdir("C:/Users/kille/Desktop")
+# import gzip
+# f = gzip.open("train-images-idx3-ubyte.gz",'r')
+# image_size = 28
+# num_images = 60000
+# 
+# import numpy as np
+# f.read(16)
+# buf = f.read(image_size * image_size * num_images)
+# base = np.frombuffer(buf, dtype=np.uint8).astype(np.float32)
+# base = base.reshape(num_images, image_size*image_size)/256
+# X=base
+# 
+# g = gzip.open("train-labels-idx1-ubyte.gz",'r')
+# image_size = 1
+# num_images = 60000
+# g.read(8)
+# buf = g.read(image_size * image_size * num_images)
+# data = np.frombuffer(buf, dtype=np.uint8).astype(np.float32)
+# 
+# 
+# =============================================================================
+
+
+import os
+os.chdir("C:/Users/kille/Desktop/Tesis_Python/PyDeep-master")
+import numpy as numx
+import pydeep.base.numpyextension as numxext
+import pydeep.misc.io as io
+import pydeep.preprocessing as pre
+import pydeep.misc.visualization as vis
+
+# Model imports: RBM estimator, model and trainer module
+import pydeep.rbm.estimator as estimator
+import pydeep.rbm.model as model
+import pydeep.rbm.trainer as trainer
+
+#X=X-X+base
+data=X.copy()
+#data=(data+1)/2
+#data = pre.remove_rows_means(data)
+v1 = 28
+v2 = 28
+h1 = 8
+h2 = 8
+####
+train_data = data[0:50000]
+test_data = data[50000:50100]
+train_data.shape
+###
+restrict = 0.01 * numx.max(numxext.get_norms(train_data, axis=1))
+eps = 0.1
+batch_size = 50
+max_epochs = 200
+
+# Create model, initial weights=Glorot init., initial sigma=1.0, initial bias=0,
+# no centering (Usually pass the data=training_data for a automatic init. that is
+# set the bias and sigma to the data mean and data std. respectively, for
+# whitened data centering is not an advantage)
+rbm = model.GaussianBinaryRBM(number_visibles=v1 * v2,
+                                      number_hiddens=h1 * h2,
+                                      initial_weights='AUTO',
+                                      initial_visible_bias='AUTO',
+                                      initial_hidden_bias='AUTO',
+                                      initial_sigma='AUTO',
+                                      initial_visible_offsets='AUTO',
+                                      initial_hidden_offsets='AUTO',
+                                      dtype=numx.float64)
+
+# Set the hidden bias such that the scaling factor is 0.01
+rbm.bh = -(numxext.get_norms(rbm.w + rbm.bv.T, axis=0) - numxext.get_norms(
+        rbm.bv, axis=None)) / 2.0 + numx.log(0.01)
+rbm.bh = rbm.bh.reshape(1, h1 * h2)
+
+
+k = 1
+trainer_cd = trainer.CD(rbm)
+
+# Train model, status every 10th epoch
+step = 10
+print ('Training')
+print ('Epoch\tRE train\tRE test \tLL train\tLL test ')
+for epoch in range(0, max_epochs + 1, 1):
+
+    # Shuffle training samples (optional)
+    train_data = numx.random.permutation(train_data)
+
+    # Print epoch and reconstruction errors every 'step' epochs.
+    if epoch % step == 0:
+        RE_train = numx.mean(estimator.reconstruction_error(rbm, train_data))
+        RE_test = numx.mean(estimator.reconstruction_error(rbm, test_data))
+        print ('%5d \t%0.5f \t%0.5f' % (epoch, RE_train, RE_test))
+
+    # Train one epoch with gradient restriction/clamping
+    # No weight decay, momentum or sparseness is used
+    for b in range(0, train_data.shape[0], batch_size):
+        trainer_cd.train(data=train_data[b:(b + batch_size), :],
+                         num_epochs=1,
+                         epsilon=[eps, 0.0, eps, eps * 0.1],
+                         k=k,
+                         momentum=0.0,
+                         reg_l1norm=0.0,
+                         reg_l2norm=0.0,
+                         reg_sparseness=0,
+                         desired_sparseness=None,
+                         update_visible_offsets=0.0,
+                         update_hidden_offsets=0.0,
+                         offset_typ='00',
+                         restrict_gradient=restrict,
+                         restriction_norm='Cols',
+                         use_hidden_states=False,
+                         use_centered_gradient=False)
+
+
+rbmReordered = vis.reorder_filter_by_hidden_activation(rbm, train_data)
+
+
+# Display RBM parameters
+#vis.imshow_standard_rbm_parameters(rbmReordered, v1, v2, h1, h2)
+
+# Sample some steps and show results
+samples = vis.generate_samples(rbm, train_data[:10], 100, 100, v1, v2, False, None)
+vis.imshow_matrix(samples, 'Samples')
+
+vis.imshow_matrix(numx.reshape(numx.random.uniform(0,1,784),(28,28)),"prueba")
+vis.imshow_matrix(numx.reshape(numx.ones(784),(28,28)),"prueba")
+vis.imshow_matrix(numx.reshape(train_data[2],(28,28)),"prueba")
+
+rbm.unnormalized_log_probability_v(train_data[0:50], beta=None, use_base_model=False)
+rbm.unnormalized_log_probability_v(train_data[2:3], beta=None, use_base_model=False)
+#rbm.unnormalized_log_probability_v(numx.reshape(samples[29:,:],(1,784)) , beta=None, use_base_model=False)
+rbm.unnormalized_log_probability_v(numx.reshape(numx.random.uniform(0,1,784),(1,784)) , beta=None, use_base_model=False)
+rbm.unnormalized_log_probability_v(numx.reshape(numx.ones(784),(1,784)) , beta=None, use_base_model=False)
+
+
+
+
+
+
+rbm.unnormalized_log_probability_v(numx.reshape(numx.random.uniform(0,1,784),(1,784)) , beta=None, use_base_model=False)
+
+
+
+
+################################Ascenso de gradiente 
+
+
+
+
+def imshow(img):
+    img = img/ 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.show()
+
+import mpmath as mpm
+import numpy as np
+
+
+
+# =============================================================================
+# 
+# sum(Parametros[2])
+# 
+# Wrest=Parametros[0]
+# Wa=np.reshape(np.sum(Wrest,1),(1,784))
+# b=np.reshape(Parametros[1],(1,784))
+# 
+# =============================================================================
+
+Oc=h1*h2
+l=0
+#N=images[:1]-images[:1]+torch.ones(28,28,requires_grad=True)+torch.empty(28, 28).uniform_(-2, 0)
+
+alfa=0+10**(-0) #regularizador
+delta=1
+
+beta=.1 #gradiente
+C=5
+#for i in range(100) :
+while F.softmax(net(N),1)[0][C]<2:
+    if l==0 :
+#            z=images[:1]
+#            z=images[:1]-images[:1]+torch.from_numpy(np.float32(samples[29:,:]))            
+#        z=images[:1]-images[:1]+torch.ones(28,28,requires_grad=True)+torch.empty(28, 28).uniform_(-2, 0)                 
+
+#                z=images[:1]-images[:1]+torch.from_numpy(SevenSegment( seg )/256).float()
+#        samples = vis.generate_samples(rbm, train_data[:1], 1000, 1000, v1, v2, False, None)
+ #           z=images[:1]-images[:1]+torch.from_numpy(samples[29:,:]).float()
+        z.requires_grad=True
+            
+#            z=torch.ones(28,28,requires_grad=True)+torch.empty(28, 28).uniform_(-2, 0)    #-.99
+        #        net.zero_grad()            
+    znp=np.reshape(z.detach().numpy(),(1,784))
+    suma=0
+    dens=1
+    for i in range(28*28):
+        dens=dens*mpm.npdf(np.float(znp[0,i]),mu=rbm.bv[0][i],sigma=np.sqrt(Oc*(rbm.sigma**2)[0][i]))
+    Norm1=dens    
+
+    for j in range(Oc):
+        
+        shift=mpm.exp((((rbm.bv+Oc*rbm.w[:,j])@np.diag((rbm.sigma**(-2))[0])@np.transpose(rbm.bv+Oc*rbm.w[:,j])-(rbm.bv**2)@(rbm.sigma**(-2))[0])/(2*Oc)+rbm.bh[0][j])[0][0])        
+        dens=1
+        for i in range(28*28):
+            dens=dens*mpm.npdf(np.float(znp[0,i]),mu=rbm.bv[0][i]+Oc*rbm.w[i,j],sigma=np.sqrt(Oc*(rbm.sigma**2)[0][i]))
+        Norm2=dens
+        suma+=(np.diag((rbm.sigma**(-2))[0])@np.reshape((rbm.w[:,j]),(784,1)))*Norm2*shift/((Norm1+shift*Norm2))
+    suma=np.array(suma.tolist(),dtype=np.float64)
+    
+
+    gra=(np.diag((rbm.sigma**(-2))[0])@np.reshape((znp-rbm.bv),(784,1)))
+#    W=torch.autograd.grad(torch.log(F.softmax(net(z),1)[0][C]), z, retain_graph=True)[0]-alfa*torch.from_numpy(np.reshape((2*(znp-b)-Wa),(28,28))).float()
+    W=delta*torch.autograd.grad(torch.log(F.softmax(net(z),1)[0][C]), z, retain_graph=True)[0]-alfa*torch.from_numpy(np.reshape((gra-suma),(28,28))).float()
+    N=z+beta*W    
+#    N[N>1]=1
+#            N[N<0]=0       
+#    N[N<-1]=-1   
+    Nnp=np.reshape(N.detach().numpy(),(1,784))
+    print(delta*np.log(F.softmax(net(N),1)[0][C].detach().numpy())+ alfa*rbm.unnormalized_log_probability_v(Nnp, beta=None, use_base_model=False) ,l,F.softmax(net(N),1)[0][C])
+#    print(l)
+    z=torch.autograd.Variable(N.data,requires_grad=True)
+    l+=1
+
+vis.imshow_matrix(numx.reshape(znp,(28,28)),"prueba")
+
+
+vis.imshow_matrix(numx.reshape(znp,(28,28)),"prueba")
+vis.imshow_matrix(numx.reshape(2*np.arctan(znp*2)/np.pi,(28,28)),"prueba")
+
+#F.softmax(net(N),1)
+#N=N-N+torch.from_numpy(np.reshape((znp),(28,28))).float()
+imshow(torchvision.utils.make_grid(z.detach()))
+
+imshow(torchvision.utils.make_grid(N.detach()))
+
+imshow(torchvision.utils.make_grid(z.detach()))
+
+F.softmax(net(N))
+
+vis.imshow_matrix(numx.reshape(znp,(28,28)),"prueba")
+
+(znp-b+Wa).shape
+
+
+torch.autograd.grad(F.softmax(net(z),1)[0][C], z, retain_graph=True)[0].shape
+
+
+
+######################
+
+
+
+
+#Nprueba=N.clone()
+
+N=Nprueba.clone()
+#N=images[:1]-images[:1]+torch.ones(28,28,requires_grad=True)
+#plt.figure(1)
+imshow(torchvision.utils.make_grid(N.detach()))
+base=1
+#from scipy import stats
+
+for i in range(28-base+1):
+    for j in range(28-base+1):
+        Naux=N.clone()
+        Naux[0,0,i:(i+base),j:(j+base)]=-1
+#        Proba=np.exp((F.softmax(net(Naux),1)[0][C]-F.softmax(net(N),1)[0][C]).detach().numpy())
+#        if stats.uniform.rvs()<Proba:
+        Condicion=(delta*np.log(F.softmax(net(Naux),1)[0][C].detach().numpy())+ alfa*rbm.unnormalized_log_probability_v(np.reshape(Naux.detach().numpy(),(1,784)), beta=None, use_base_model=False)
+        -(delta*np.log(F.softmax(net(N),1)[0][C].detach().numpy())+ alfa*rbm.unnormalized_log_probability_v(np.reshape(N.detach().numpy(),(1,784)), beta=None, use_base_model=False)
+        ))[0][0]>0
+
+        if Condicion:
+#            print(i,j,Proba)
+            print(i,j)            
+            N=Naux.clone()        
+imshow(torchvision.utils.make_grid(N.detach()))
+#[[228.9250825]] 6972 tensor(0.2176, grad_fn=<SelectBackward>)
+print(delta*np.log(F.softmax(net(Naux),1)[0][C].detach().numpy())+ alfa*rbm.unnormalized_log_probability_v(np.reshape(Naux.detach().numpy(),(1,784)), beta=None, use_base_model=False))
+
+
+imshow(torchvision.utils.make_grid(N.detach()))
+imshow(torchvision.utils.make_grid(Naux.detach()))
+imshow(torchvision.utils.make_grid(Nprueba.detach()))
+
+F.softmax(net(Naux),1)[0][C]
+F.softmax(net(N),1)[0][C]
+
