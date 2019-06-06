@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Apr 22 13:18:13 2019
+
+@author: jac
+"""
+from PIL.Image import fromarray
+from numpy import zeros, array
+
+
+"""
+arr_im = zeros((28,28), dtype='u1')
+arr_im[0] = 254
+im = fromarray( arr_im, mode='L')
+im.show()
+im.save("tst.jpg")
+"""
+
+def SevenSegment( segments ):
+    """Create an image with the 7 segments electronic display:
+       This creates number 1:  Image7Segment( [ 0, 1, 1, 0, 0, 0, 0]).
+         000
+        5   1
+        5   1
+         666
+        4   2
+        4   2
+         333
+    """
+    rt = zeros((28,28), dtype='u1')
+    if segments[0] == 1:
+        rt[ 4, 9:19] = 255
+    if segments[1] == 1:
+        rt[ 4:14, 19] = 255
+    if segments[2] == 1:
+        rt[ 14:24, 19] = 255
+    if segments[3] == 1:
+        rt[ 24, 9:19] = 255
+    if segments[4] == 1:
+        rt[ 14:24, 9] = 255
+    if segments[5] == 1:
+        rt[ 4:14, 9] = 255
+    if segments[6] == 1:
+        rt[ 14, 9:19] = 255
+
+    return rt
+
+"""
+im = fromarray(SevenSegment( [ 1, 1, 0, 1, 1, 0, 1] ), mode='L')
+im.show()
+"""
+Aux=np.ones((17,))
+ex2 = array([2**i for i in range(7)])
+i=0
+for s0 in [0,1]:
+    for s1 in [0,1]:
+        for s2 in [0,1]:
+            for s3 in [0,1]:
+                for s4 in [0,1]:
+                    for s5 in [0,1]:
+                        for s6 in [0,1]:
+                            seg = array([s0,s1,s2,s3,s4,s5,s6])
+                            Eval=F.softmax(net(images[:1]-images[:1]+torch.from_numpy((SevenSegment( seg )/255-0.5)*2).float()),1).detach().numpy()[0]
+                            Aux=np.vstack((Aux,np.concatenate((seg,Eval))))
+                            im = fromarray(SevenSegment( seg ), mode='L')
+#                            im.save("C:/Users/kille/Desktop/Imagenes/7Seg%d.jpg" % (sum(seg*ex2),))
+                            im.save("C:/Users/kille/Desktop/Imagenes/7Seg_Categoria%d_Iteracion_%dProba_%f.jpg" % (np.argmax(Eval),i,np.max(Eval)))
+                            i+=1
+
+
+
+# =============================================================================
+ np.savetxt("7segment.csv", Aux[1:,:], delimiter=",")
+ from numpy import genfromtxt
+ np.reshape(genfromtxt('C:/Users/kille/Desktop/7segment.csv', delimiter=','),(128,17))
+# 
+# =============================================================================
+
+
+
+
+
+
+
+
+
