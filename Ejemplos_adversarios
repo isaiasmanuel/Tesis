@@ -1,0 +1,47 @@
+
+
+Im=genfromtxt("C:/Users/kille/Desktop/PrototipoGAN9.csv", delimiter=',')
+#Im=genfromtxt("C:/Users/kille/Desktop/PrototipoAM59958.csv", delimiter=',')
+#Im=genfromtxt("C:/Users/kille/Desktop/PrototipoGBRBM5con9811.csv", delimiter=',')
+
+#Im=genfromtxt("C:/Users/kille/Desktop/PrototipoAM5.csv", delimiter=',')
+Im=np.reshape(np.float32(Im),(28,28))
+Im=torch.from_numpy(Im)
+z=images[:1]-images[:1]+Im
+
+
+z.requires_grad=True
+z0=torch.autograd.Variable(z.data,requires_grad=True)
+zi=torch.autograd.Variable(z.data,requires_grad=True)
+W=torch.zeros([10,1,28,28])
+l=torch.zeros([10,1])
+rfin=0
+Val=torch.zeros([10,1])
+while net(zi)[0].max(0)[1]==net(z0)[0].max(0)[1]:
+    for i in range(10):
+        if i!=net(z0)[0].max(0)[1]:
+            W[i]=torch.autograd.grad(net(zi)[0][i], zi, retain_graph=True)[0]-torch.autograd.grad(net(zi)[0][net(z0)[0].max(0)[1]], zi, retain_graph=True)[0]
+            Val[i]=net(zi)[0][i]-net(zi)[0][net(z0)[0].max(0)[1]]        
+            l[i]=torch.norm(Val[i])/torch.norm(W[i])
+        l[net(zi)[0].max(0)[1]]=l[l.max(0)[1]]
+    L=l.min(0)[1]
+    ri=torch.norm(Val[L])/torch.norm(W[L])**2*W[L]
+    zi=zi+ri
+    rfin=rfin+ri
+
+imshow(torchvision.utils.make_grid(z.detach()))    
+imshow(torchvision.utils.make_grid(rfin.detach()))    
+imshow(torchvision.utils.make_grid(zi.detach()))    
+net(zi)[0].max(0)[1]
+net(z0)[0].max(0)[1]
+
+F.softmax(net(z),1)[0]
+F.softmax(net(zi),1)[0]
+
+
+
+
+
+
+
+
